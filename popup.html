@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Boost my prompT Settings</title>
+    <link rel="stylesheet" href="popup.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="container">
+        <h1>✨ Boost my prompT</h1>
+
+        <div class="form-group toggle-group">
+            <label for="extension-toggle">Enable Magic Wand</label>
+            <label class="switch">
+                <input type="checkbox" id="extension-toggle" checked>
+                <span class="slider round"></span>
+            </label>
+        </div>
+
+        <div class="form-group">
+            <label for="provider">AI Provider</label>
+            <select id="provider">
+                <option value="openai">OpenAI (ChatGPT)</option>
+                <option value="gemini">Google Gemini</option>
+                <option value="anthropic">Anthropic (Claude)</option>
+                <option value="inception">Inception Labs</option>
+                <option value="openrouter">OpenRouter</option>
+                <option value="ollama-local">Ollama Local</option>
+                <option value="ollama-remote">Ollama Remote</option>
+            </select>
+        </div>
+
+        <div class="form-group" id="api-key-group">
+            <label for="api-key">API Key (BYOK) <span style="font-weight: normal; font-size: 0.75rem;">(Optional for
+                    Ollama)</span></label>
+            <input type="password" id="api-key" placeholder="Enter your API key here...">
+        </div>
+
+        <div class="form-group" id="ollama-url-group" style="display: none;">
+            <label for="ollama-url">Ollama URL</label>
+            <input type="text" id="ollama-url" placeholder="http://localhost:11434">
+        </div>
+
+        <div class="form-group" id="ollama-model-group">
+            <label for="ollama-model">Model Selection</label>
+            <div style="display: flex; gap: 8px;">
+                <select id="ollama-model" style="flex: 1;">
+                    <option value="">Select a model...</option>
+                </select>
+                <button type="button" id="fetch-ollama-models-btn" title="Refresh Models"
+                    style="padding: 8px;">↻</button>
+            </div>
+            <span id="ollama-fetch-status"
+                style="font-size: 12px; color: #666; margin-top: 4px; display: block;"></span>
+        </div>
+
+
+
+        <button id="save-btn">Save Settings</button>
+        <div id="status"></div>
+    </div>
+    <script src="popup.js"></script>
+</body>
+
+</html>

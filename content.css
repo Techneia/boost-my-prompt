@@ -1,0 +1,145 @@
+/* ===== Wand Button Container ===== */
+.boost-my-prompt-wand-wrapper {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    margin: 0 4px;
+}
+
+/* ===== Progress Ring (SVG overlay) ===== */
+.boost-my-prompt-progress-ring {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 36px;
+    height: 36px;
+    transform: rotate(-90deg);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    z-index: 2;
+}
+
+.boost-my-prompt-progress-ring.active {
+    opacity: 1;
+}
+
+.boost-my-prompt-progress-ring .ring-bg {
+    fill: none;
+    stroke: rgba(168, 85, 247, 0.15);
+    stroke-width: 3;
+}
+
+.boost-my-prompt-progress-ring .ring-fg {
+    fill: none;
+    stroke: url(#boost-progress-gradient);
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-dasharray: 94.25;  /* 2 * PI * 15 (radius) */
+    stroke-dashoffset: 94.25; /* start fully hidden */
+    transition: stroke-dashoffset 0.3s ease-out;
+}
+
+/* ===== Completion flash ===== */
+.boost-my-prompt-progress-ring.complete .ring-fg {
+    stroke-dashoffset: 0 !important;
+    transition: stroke-dashoffset 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.boost-my-prompt-progress-ring.complete {
+    animation: ringFlash 0.6s ease-out 0.35s forwards;
+}
+
+@keyframes ringFlash {
+    0% {
+        filter: drop-shadow(0 0 0px rgba(168, 85, 247, 0));
+    }
+    50% {
+        filter: drop-shadow(0 0 8px rgba(168, 85, 247, 0.7));
+    }
+    100% {
+        filter: drop-shadow(0 0 0px rgba(168, 85, 247, 0));
+        opacity: 0;
+    }
+}
+
+/* ===== The Actual Button ===== */
+.boost-my-prompt-wand-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: #a855f7;
+    transition: all 0.2s ease-in-out;
+    padding: 8px;
+    position: relative;
+    z-index: 1;
+}
+
+.boost-my-prompt-wand-btn:hover {
+    background-color: rgba(168, 85, 247, 0.1);
+    transform: scale(1.05);
+}
+
+.boost-my-prompt-wand-btn:active {
+    transform: scale(0.95);
+}
+
+.boost-my-prompt-wand-btn svg {
+    width: 100%;
+    height: 100%;
+}
+
+/* ===== Loading state: icon spins, wrapper blocks clicks ===== */
+.boost-my-prompt-wand-wrapper.loading .boost-my-prompt-wand-btn {
+    animation: rotateWand 1.8s linear infinite;
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+.boost-my-prompt-wand-wrapper.loading {
+    pointer-events: none;
+}
+
+@keyframes rotateWand {
+    0%   { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* ===== Percentage Label (center overlay) ===== */
+.boost-my-prompt-pct-label {
+    position: absolute;
+    bottom: -2px;
+    right: -4px;
+    font-size: 9px;
+    font-weight: 700;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    color: #a855f7;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    z-index: 3;
+    background: rgba(255,255,255,0.85);
+    border-radius: 4px;
+    padding: 0 2px;
+    line-height: 1.2;
+}
+
+/* Dark mode detection */
+@media (prefers-color-scheme: dark) {
+    .boost-my-prompt-pct-label {
+        background: rgba(30, 30, 30, 0.85);
+    }
+}
+
+.boost-my-prompt-pct-label.active {
+    opacity: 1;
+}

@@ -1,0 +1,66 @@
+{
+    "manifest_version": 3,
+    "name": "Boost my prompT",
+    "version": "1.0",
+    "description": "Improve your AI prompts with a Magic Wand using custom AI providers.",
+    "action": {
+        "default_popup": "popup.html",
+        "default_title": "Configure Boost my prompT"
+    },
+    "background": {
+        "service_worker": "background.js"
+    },
+    "declarative_net_request": {
+        "rule_resources": [
+            {
+                "id": "ruleset_1",
+                "enabled": true,
+                "path": "rules.json"
+            }
+        ]
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "*://chatgpt.com/*",
+                "*://gemini.google.com/*",
+                "*://claude.ai/*",
+                "*://grok.com/*",
+                "*://chat.mistral.ai/*",
+                "*://lumo.proton.me/*",
+                "*://lovable.dev/*",
+                "*://replit.com/*",
+                "*://*.replit.com/*"
+            ],
+            "js": [
+                "content.js"
+            ],
+            "css": [
+                "content.css"
+            ],
+            "run_at": "document_idle"
+        }
+    ],
+    "permissions": [
+        "storage",
+        "activeTab",
+        "scripting",
+        "declarativeNetRequest"
+    ],
+    "host_permissions": [
+        "*://chatgpt.com/*",
+        "*://gemini.google.com/*",
+        "*://claude.ai/*",
+        "*://grok.com/*",
+        "*://chat.mistral.ai/*",
+        "*://lumo.proton.me/*",
+        "*://lovable.dev/*",
+        "*://replit.com/*",
+        "*://*.replit.com/*",
+        "https://api.openai.com/*",
+        "https://generativelanguage.googleapis.com/*",
+        "https://api.anthropic.com/*",
+        "https://api.inceptionlabs.ai/*",
+        "<all_urls>"
+    ]
+}
