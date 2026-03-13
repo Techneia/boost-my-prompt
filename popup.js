@@ -9,12 +9,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const ollamaModelSelect = document.getElementById('ollama-model');
     const fetchModelsBtn = document.getElementById('fetch-ollama-models-btn');
     const ollamaFetchStatus = document.getElementById('ollama-fetch-status');
+    const modelSearchInput = document.getElementById('model-search');
     const saveBtn = document.getElementById('save-btn');
     const statusDiv = document.getElementById('status');
 
     let currentApiKeys = {};
     let currentProviderUrls = {};
     let currentProviderModels = {};
+    let allModels = [];
 
     // Load saved options
     chrome.storage.local.get(
@@ -60,6 +62,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         apiKeyInput.value = currentApiKeys[provider] || '';
         ollamaUrlInput.value = currentProviderUrls[provider] || '';
+        modelSearchInput.value = '';
+        allModels = [];
 
         ollamaModelSelect.innerHTML = '<option value="">Select a model...</option>';
         const savedModel = currentProviderModels[provider] || '';
@@ -114,8 +118,10 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (provider === 'anthropic') {
             if (!apiKey) return ollamaFetchStatus.textContent = 'API Key required.';
             // Anthropic doesn't have a standard /models endpoint. Mocking common ones.
+            const anthropicModels = ['claude-3-5-sonnet-20240620', 'claude-3-opus-20240229', 'claude-3-haiku-20240307'];
+            allModels = [...anthropicModels];
             ollamaModelSelect.innerHTML = '<option value="">Select a model...</option>';
-            ['claude-3-5-sonnet-20240620', 'claude-3-opus-20240229', 'claude-3-haiku-20240307'].forEach(m => {
+            anthropicModels.forEach(m => {
                 const opt = document.createElement('option');
                 opt.value = opt.textContent = m;
                 ollamaModelSelect.appendChild(opt);
@@ -171,6 +177,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (modelsArray.length > 0) {
+                allModels = [...modelsArray];
                 modelsArray.forEach(modelId => {
                     const opt = document.createElement('option');
                     opt.value = modelId;
@@ -233,6 +240,30 @@ document.addEventListener('DOMContentLoaded', () => {
         input.addEventListener('change', saveSettings);
         if (input.type === 'text' || input.tagName === 'TEXTAREA') {
             input.addEventListener('input', saveSettings);
+        }
+    });
+
+    // Model search filter
+    modelSearchInput.addEventListener('input', () => {
+        const searchTerm = modelSearchInput.value.toLowerCase().trim();
+        
+        ollamaModelSelect.innerHTML = '<option value="">Select a model...</option>';
+        
+        const filteredModels = allModels.filter(model => 
+            model.toLowerCase().includes(searchTerm)
+        );
+        
+        filteredModels.forEach(modelId => {
+            const opt = document.createElement('option');
+            opt.value = modelId;
+            opt.textContent = modelId;
+            ollamaModelSelect.appendChild(opt);
+        });
+        
+        if (allModels.length > 0 && filteredModels.length === 0) {
+            ollamaFetchStatus.textContent = 'No models match your search.';
+        } else if (filteredModels.length > 0) {
+            ollamaFetchStatus.textContent = `${filteredModels.length} model(s) found.`;
         }
     });
 });
