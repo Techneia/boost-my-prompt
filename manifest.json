@@ -24,6 +24,7 @@
             "matches": [
                 "*://chatgpt.com/*",
                 "*://gemini.google.com/*",
+                "*://aistudio.google.com/*",
                 "*://claude.ai/*",
                 "*://grok.com/*",
                 "*://chat.mistral.ai/*",
@@ -50,6 +51,7 @@
     "host_permissions": [
         "*://chatgpt.com/*",
         "*://gemini.google.com/*",
+        "*://aistudio.google.com/*",
         "*://claude.ai/*",
         "*://grok.com/*",
         "*://chat.mistral.ai/*",

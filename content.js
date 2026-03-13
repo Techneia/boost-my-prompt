@@ -43,6 +43,12 @@ const SITE_CONFIGS = [
         inputSelector: '.cm-content[contenteditable="true"]',
         buttonContainerSelector: 'button[data-cy="ai-prompt-submit"]',
         insertPosition: 'beforebegin'
+    },
+    {
+        host: 'aistudio.google.com',
+        inputSelector: 'textarea.prompt-textarea',
+        buttonContainerSelector: '.actions-container',
+        insertPosition: 'beforeend'
     }
 ];
 
