@@ -16,6 +16,7 @@
 The extension currently supports the following platforms:
 -   ChatGPT (chatgpt.com)
 -   Google Gemini (gemini.google.com)
+-   Google AI Studio (aistudio.google.com)
 -   Anthropic Claude (claude.ai)
 -   xAI Grok (grok.com)
 -   Mistral AI (chat.mistral.ai)
