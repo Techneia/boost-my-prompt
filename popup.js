@@ -1,4 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const setupWandBtn = document.getElementById('setup-wand-btn');
+    const savedSitesGroup = document.getElementById('saved-sites-group');
+    const savedSitesList = document.getElementById('saved-sites-list');
     const toggleInput = document.getElementById('extension-toggle');
     const providerSelect = document.getElementById('provider');
     const apiKeyGroup = document.getElementById('api-key-group');
@@ -25,12 +28,52 @@ document.addEventListener('DOMContentLoaded', () => {
             provider: 'openai',
             apiKeys: {},
             providerUrls: { 'ollama-local': 'http://localhost:11434' },
-            providerModels: {}
+            providerModels: {},
+            savedSites: {}
         },
         (items) => {
             currentApiKeys = items.apiKeys || {};
             currentProviderUrls = items.providerUrls || { 'ollama-local': 'http://localhost:11434' };
             currentProviderModels = items.providerModels || {};
+            let savedSites = items.savedSites || {};
+
+            function renderSavedSites() {
+                savedSitesList.innerHTML = '';
+                const domains = Object.keys(savedSites);
+                if (domains.length > 0) {
+                    savedSitesGroup.style.display = 'block';
+                    domains.forEach(domain => {
+                        const li = document.createElement('li');
+                        li.style.display = 'flex';
+                        li.style.justifyContent = 'space-between';
+                        li.style.alignItems = 'center';
+                        li.style.marginBottom = '5px';
+                        
+                        const textSpan = document.createElement('span');
+                        textSpan.textContent = domain;
+                        
+                        const removeBtn = document.createElement('button');
+                        removeBtn.textContent = '✖';
+                        removeBtn.style.padding = '2px 5px';
+                        removeBtn.style.background = 'transparent';
+                        removeBtn.style.color = '#ef4444';
+                        removeBtn.style.border = 'none';
+                        removeBtn.style.cursor = 'pointer';
+                        
+                        removeBtn.addEventListener('click', () => {
+                            delete savedSites[domain];
+                            chrome.storage.local.set({ savedSites }, renderSavedSites);
+                        });
+                        
+                        li.appendChild(textSpan);
+                        li.appendChild(removeBtn);
+                        savedSitesList.appendChild(li);
+                    });
+                } else {
+                    savedSitesGroup.style.display = 'none';
+                }
+            }
+            renderSavedSites();
 
             toggleInput.checked = items.enabled;
             providerSelect.value = items.provider;
@@ -265,5 +308,14 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (filteredModels.length > 0) {
             ollamaFetchStatus.textContent = `${filteredModels.length} model(s) found.`;
         }
+    });
+
+    setupWandBtn.addEventListener('click', () => {
+        chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
+            if (tabs[0]) {
+                chrome.tabs.sendMessage(tabs[0].id, {action: 'START_PICKER_MODE'});
+                window.close();
+            }
+        });
     });
 });

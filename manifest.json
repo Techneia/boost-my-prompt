@@ -34,16 +34,7 @@
     "content_scripts": [
         {
             "matches": [
-                "*://chatgpt.com/*",
-                "*://gemini.google.com/*",
-                "*://aistudio.google.com/*",
-                "*://claude.ai/*",
-                "*://grok.com/*",
-                "*://chat.mistral.ai/*",
-                "*://lumo.proton.me/*",
-                "*://lovable.dev/*",
-                "*://replit.com/*",
-                "*://*.replit.com/*"
+                "<all_urls>"
             ],
             "js": [
                 "content.js"

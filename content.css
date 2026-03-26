@@ -143,3 +143,12 @@
 .boost-my-prompt-pct-label.active {
     opacity: 1;
 }
+
+/* ===== Universal Picker ===== */
+.boost-my-prompt-picker-highlight {
+    outline: 2px dashed #7c3aed !important;
+    background-color: rgba(124, 58, 237, 0.15) !important;
+    cursor: crosshair !important;
+    z-index: 2147483647 !important;
+    transition: all 0.1s ease-in-out !important;
+}

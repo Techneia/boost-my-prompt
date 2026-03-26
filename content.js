@@ -1,62 +1,150 @@
-// Configuration for finding the text entry area on different sites
-const SITE_CONFIGS = [
-    {
-        host: 'chatgpt.com',
-        inputSelector: '#prompt-textarea',
-        buttonContainerSelector: '.flex.items-center.gap-2.\\[grid-area\\:trailing\\] > div' // Inject into the trailing tools area next to voice button
-    },
-    {
-        host: 'gemini.google.com',
-        inputSelector: 'rich-textarea .ql-editor',
-        buttonContainerSelector: '.leading-actions-wrapper'
-    },
-    {
-        host: 'claude.ai',
-        inputSelector: '[contenteditable="true"].ProseMirror',
-        buttonContainerSelector: '.relative.flex-1.flex.items-center.shrink.min-w-0.gap-1',
-        insertPosition: 'beforeend'
-    },
-    {
-        host: 'grok.com',
-        inputSelector: '.ProseMirror',
-        buttonContainerSelector: '.ms-auto.flex.flex-row.items-end.gap-1',
-        wrapperStyle: { zIndex: '100' }
-    },
-    {
-        host: 'chat.mistral.ai',
-        inputSelector: '.ProseMirror',
-        buttonContainerSelector: '.flex.ms-auto'
-    },
-    {
-        host: 'lumo.proton.me',
-        inputSelector: '.lumo-input-container .ProseMirror',
-        buttonContainerSelector: '.lumo-input-container .flex.flex-row.flex-nowrap.items-center.gap-2.pl-1'
-    },
-    {
-        host: 'lovable.dev',
-        inputSelector: '.ProseMirror',
-        buttonContainerSelector: '#chat-input .ml-auto.flex.items-center.gap-1',
-        insertPosition: 'afterbegin'
-    },
-    {
-        host: 'replit.com',
-        inputSelector: '.cm-content[contenteditable="true"]',
-        buttonContainerSelector: 'button[data-cy="ai-prompt-submit"]',
-        insertPosition: 'beforebegin'
-    },
-    {
-        host: 'aistudio.google.com',
-        inputSelector: 'textarea.prompt-textarea',
-        buttonContainerSelector: '.actions-container',
-        insertPosition: 'beforeend'
+let currentSiteConfig = null;
+let isExtensionEnabled = true;
+
+chrome.storage.local.get({ savedSites: {}, enabled: true }, (items) => {
+    isExtensionEnabled = items.enabled;
+    const configData = items.savedSites[window.location.hostname];
+    if (configData) {
+        if (typeof configData === 'string') {
+            currentSiteConfig = { host: window.location.hostname, inputSelector: configData, buttonContainerSelector: null };
+        } else {
+            currentSiteConfig = { host: window.location.hostname, inputSelector: configData.inputSelector, buttonContainerSelector: configData.buttonContainerSelector };
+        }
     }
-];
+});
+
+/* ========== UNIVERSAL PICKER LOGIC ========== */
+let pickerActive = false;
+let currentHighlighted = null;
+let pickerStep = 1;
+let tempInputSelector = null;
+
+function getCssSelector(el) {
+    if (el.tagName.toLowerCase() == "html") return "html";
+    let str = el.tagName.toLowerCase();
+    
+    // Prefer static stable attributes for SPA robustness
+    const robustAttrs = ['data-testid', 'aria-label', 'name', 'placeholder'];
+    for (let attr of robustAttrs) {
+        if (el.hasAttribute(attr)) {
+            const val = el.getAttribute(attr);
+            if (val && !val.match(/^\d+$/)) { // Evitar solo números
+                return `${str}[${attr}="${CSS.escape(val)}"]`;
+            }
+        }
+    }
+
+    if (el.id && !el.id.match(/\d+/)) { 
+        return str + "#" + CSS.escape(el.id); 
+    }
+    
+    let classes = Array.from(el.classList).filter(c => !c.startsWith('boost-my-prompt'));
+    if (classes.length > 0) {
+        str += "." + classes.map(c => CSS.escape(c)).join(".");
+    }
+    
+    let parent = el.parentNode;
+    if (parent && parent.tagName && parent.tagName.toLowerCase() !== 'body') {
+        str = getCssSelector(parent) + ' > ' + str;
+    }
+    return str;
+}
+
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg.action === 'START_PICKER_MODE') {
+        startPickerMode();
+    }
+});
+
+function startPickerMode() {
+    pickerActive = true;
+    pickerStep = 1;
+    tempInputSelector = null;
+    document.addEventListener('mouseover', highlightElement, true);
+    document.addEventListener('mouseout', removeHighlight, true);
+    document.addEventListener('click', selectElement, true);
+    showToast('Wand Setup (Step 1/2): Click the Text Input area used for prompting.', 5000);
+}
+
+function stopPickerMode() {
+    pickerActive = false;
+    document.removeEventListener('mouseover', highlightElement, true);
+    document.removeEventListener('mouseout', removeHighlight, true);
+    document.removeEventListener('click', selectElement, true);
+    if (currentHighlighted) {
+        currentHighlighted.classList.remove('boost-my-prompt-picker-highlight');
+        currentHighlighted = null;
+    }
+}
+
+function highlightElement(e) {
+    if (!pickerActive) return;
+    if (currentHighlighted) {
+        currentHighlighted.classList.remove('boost-my-prompt-picker-highlight');
+    }
+    currentHighlighted = e.target;
+    currentHighlighted.classList.add('boost-my-prompt-picker-highlight');
+}
+
+function removeHighlight(e) {
+    if (!pickerActive) return;
+    if (e.target) {
+        e.target.classList.remove('boost-my-prompt-picker-highlight');
+    }
+}
+
+function selectElement(e) {
+    if (!pickerActive) return;
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (pickerStep === 1) {
+        tempInputSelector = getCssSelector(e.target);
+        pickerStep = 2;
+        removeHighlight(e);
+        showToast('Wand Setup (Step 2/2): Now, click the action buttons container where the Wand should be placed.', 8000);
+        return;
+    }
+
+    if (pickerStep === 2) {
+        const btnSelector = getCssSelector(e.target);
+        stopPickerMode();
+        
+        const hostname = window.location.hostname;
+        chrome.storage.local.get({ savedSites: {} }, (items) => {
+            const savedSites = items.savedSites;
+            savedSites[hostname] = {
+                inputSelector: tempInputSelector,
+                buttonContainerSelector: btnSelector
+            };
+            chrome.storage.local.set({ savedSites }, () => {
+                 showToast(`Wand configured perfectly for ${hostname}! ✨`);
+                 currentSiteConfig = { host: hostname, inputSelector: tempInputSelector, buttonContainerSelector: btnSelector };
+                 injectWand(); // Try to inject immediately
+            });
+        });
+    }
+}
+
+function showToast(msg, ms = 4000) {
+    // Remove existing toasts
+    document.querySelectorAll('.boost-my-prompt-toast').forEach(t => t.remove());
+
+    let t = document.createElement('div');
+    t.className = 'boost-my-prompt-toast';
+    t.textContent = msg;
+    t.style.position = 'fixed'; t.style.bottom = '20px'; t.style.left = '50%';
+    t.style.transform = 'translateX(-50%)';
+    t.style.background = '#7c3aed'; t.style.color = '#fff';
+    t.style.padding = '12px 24px'; t.style.borderRadius = '8px';
+    t.style.zIndex = '2147483647'; t.style.fontWeight = '500'; t.style.fontFamily = 'sans-serif';
+    t.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), ms);
+}
 
 let currentWandWrapper = null;
 let currentWandButton = null;
-let savedOriginalText = '';
-let savedImprovedText = '';
-let isUndoMode = false;
 
 // --- Progress state ---
 let progressInterval = null;
@@ -69,20 +157,6 @@ let progressRingSvg = null;
 const RING_CIRCUMFERENCE = 2 * Math.PI * 15; // radius = 15
 
 const WAND_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wand-2"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72Z"/><path d="m14 7 3 3"/><path d="M5 6v4"/><path d="M19 14v4"/><path d="M10 2v2"/><path d="M7 8H3"/><path d="M21 16h-4"/><path d="M11 3H9"/></svg>`;
-const UNDO_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-undo-2"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11"/></svg>`;
-
-function detectSiteConfig() {
-    const hostname = window.location.hostname;
-    return SITE_CONFIGS.find(config => hostname.includes(config.host));
-}
-
-function resetToWand() {
-    isUndoMode = false;
-    if (currentWandButton) {
-        currentWandButton.innerHTML = WAND_ICON;
-        currentWandButton.title = 'Boost your prompt ✨';
-    }
-}
 
 // ========== Progress Ring Helpers ==========
 
@@ -263,32 +337,51 @@ function createWandButton() {
 
 // ========== Input Helpers ==========
 
-function getTextFromInput(element) {
+function findActualInput(element) {
+    if (!element) return null;
+    
+    if (element.tagName === 'TEXTAREA' || element.tagName === 'INPUT') {
+        return element;
+    }
+
+    // Queremos encontrar la RAÍZ del contenteditable (por si seleccionó un párrafo interno <p> o <span>)
+    const rootCE = element.closest('[contenteditable], textarea, input');
+    if (rootCE) return rootCE;
+
+    // Buscamos hacia abajo (por si hizo clic en un div contenedor gigante)
+    const innerCE = element.querySelector('[contenteditable], textarea, input[type="text"]');
+    if (innerCE) return innerCE;
+
+    if (element.isContentEditable) return element;
+
+    return element; // Fallback
+}
+
+function getTextFromInput(baseElement) {
+    const element = findActualInput(baseElement);
+    if (!element) return '';
     if (element.tagName === 'TEXTAREA' || element.tagName === 'INPUT') {
         return element.value;
-    } else if (element.isContentEditable) {
+    } else if (element.isContentEditable || element.hasAttribute('contenteditable')) {
         return element.innerText || element.textContent;
     }
     return '';
 }
 
-function setTextToInput(element, text) {
+function setTextToInput(baseElement, text) {
+    const element = findActualInput(baseElement);
+    if (!element) return;
     if (element.tagName === 'TEXTAREA' || element.tagName === 'INPUT') {
         element.value = text;
         element.dispatchEvent(new Event('input', { bubbles: true }));
         element.dispatchEvent(new Event('change', { bubbles: true }));
-    } else if (element.isContentEditable) {
+    } else if (element.isContentEditable || element.hasAttribute('contenteditable')) {
         element.focus();
 
-        // Robust selection for advanced editors (CodeMirror, ProseMirror)
-        const selection = window.getSelection();
-        const range = document.createRange();
-        range.selectNodeContents(element);
-        selection.removeAllRanges();
-        selection.addRange(range);
+        // SELECCIONAMOS TODO EL TEXTO primero para forzar REEMPLAZO en lugar de añadir
+        document.execCommand('selectAll', false, null);
 
-        // Try dispatching a paste event. Advanced editors handle this internally
-        // and update their React/custom states perfectly.
+        // Intentamos el evento paste para editores complejos
         const dt = new DataTransfer();
         dt.setData('text/plain', text);
         const pasteEvent = new ClipboardEvent('paste', {
@@ -299,50 +392,54 @@ function setTextToInput(element, text) {
 
         element.dispatchEvent(pasteEvent);
 
-        // If the editor didn't catch and prevent the paste event, 
-        // fallback to the browser's native insertText command.
         if (!pasteEvent.defaultPrevented) {
             document.execCommand('insertText', false, text);
         }
     }
 }
 
-let inputListenerAdded = false;
-
-function setupInputListener(inputArea) {
-    if (inputListenerAdded) return;
-    inputArea.addEventListener('input', () => {
-        if (isUndoMode) {
-            const currentText = getTextFromInput(inputArea);
-            if (currentText.trim() !== savedImprovedText.trim()) {
-                resetToWand();
-            }
-        }
-    });
-    inputListenerAdded = true;
-}
-
 // ========== Main Handler ==========
 
 async function handleWandClick() {
-    const config = detectSiteConfig();
-    if (!config) return;
+    if (!currentSiteConfig) return;
 
-    const inputArea = document.querySelector(config.inputSelector);
-    if (!inputArea) return;
-
-    setupInputListener(inputArea);
-
-    if (isUndoMode) {
-        setTextToInput(inputArea, savedOriginalText);
-        resetToWand();
+    const rawInputArea = document.querySelector(currentSiteConfig.inputSelector);
+    if (!rawInputArea) {
+        showToast("Error: No se encontró la caja de texto. Trata de reconfigurar la varita.", 4000);
         return;
     }
+    
+    let inputArea = findActualInput(rawInputArea);
 
-    const textToImprove = getTextFromInput(inputArea);
-    if (!textToImprove.trim()) return;
+    let textToImprove = '';
+    if (inputArea) {
+        textToImprove = getTextFromInput(inputArea);
+    }
 
-    savedOriginalText = textToImprove;
+    // Fallback maestro: si el selector no capturó texto, escaneamos TODA la página
+    // buscando cualquier input o contenteditable que tenga texto escrito.
+    if (!textToImprove || !textToImprove.trim()) {
+        const fallbacks = document.querySelectorAll('textarea, [contenteditable], input[type="text"]');
+        for (let el of fallbacks) {
+            let txt = '';
+            if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
+                txt = el.value;
+            } else {
+                txt = el.innerText || el.textContent;
+            }
+            
+            if (txt && txt.trim()) {
+                inputArea = el; // Reasignamos la caja de texto al elemento correcto
+                textToImprove = txt;
+                break;
+            }
+        }
+    }
+
+    if (!textToImprove || !textToImprove.trim()) {
+        showToast("Escribe algo en la caja de texto primero ✍️", 4000);
+        return;
+    }
 
     // Start loading + progress
     if (currentWandWrapper) currentWandWrapper.classList.add('loading');
@@ -380,13 +477,7 @@ async function handleWandClick() {
                 // Complete progress animation, then set text
                 completeProgress(() => {
                     if (currentWandWrapper) currentWandWrapper.classList.remove('loading');
-                    savedImprovedText = response.improvedText;
                     setTextToInput(inputArea, response.improvedText);
-
-                    // Switch to Undo mode
-                    isUndoMode = true;
-                    currentWandButton.innerHTML = UNDO_ICON;
-                    currentWandButton.title = 'Undo prompt boost';
                 });
             } else {
                 cancelProgress();
@@ -407,57 +498,134 @@ async function handleWandClick() {
 
 // ========== Injection ==========
 
-function injectWand() {
+function injectWand(retryCount = 0) {
     try {
-        if (!chrome.storage || !chrome.storage.local) {
+        if (!isExtensionEnabled) {
+            if (currentWandWrapper && currentWandWrapper.parentElement) {
+                currentWandWrapper.parentElement.removeChild(currentWandWrapper);
+                currentWandWrapper = null;
+                currentWandButton = null;
+            }
             return;
         }
 
-        chrome.storage.local.get({ enabled: true }, (items) => {
-            if (chrome.runtime.lastError) {
+        if (!currentSiteConfig) return;
+
+        let inputArea = null;
+        try {
+            inputArea = document.querySelector(currentSiteConfig.inputSelector);
+        } catch (queryErr) {
+            chrome.storage.local.get({ savedSites: {} }, (items) => {
+                const savedSites = items.savedSites;
+                if (savedSites[currentSiteConfig.host]) {
+                    delete savedSites[currentSiteConfig.host];
+                    chrome.storage.local.set({ savedSites });
+                }
+            });
+            return;
+        }
+        
+        if (!inputArea) return;
+
+        // Ensure wand isn't already there
+        if (document.querySelector('.boost-my-prompt-wand-wrapper')) {
+            if (!currentSiteConfig.buttonContainerSelector) {
+                positionWand(currentWandWrapper, inputArea);
+            }
+            return;
+        }
+
+        let buttonContainer = null;
+        if (currentSiteConfig.buttonContainerSelector) {
+            try {
+                buttonContainer = document.querySelector(currentSiteConfig.buttonContainerSelector);
+            } catch (err) {}
+            
+            // Si hay un contenedor esperado pero no se encuentra aún en el DOM (SPA rendering delay)
+            if (!buttonContainer && retryCount < 5) {
+                setTimeout(() => injectWand(retryCount + 1), 200);
                 return;
             }
+        }
 
-            if (!items.enabled) {
-                if (currentWandWrapper && currentWandWrapper.parentElement) {
-                    currentWandWrapper.parentElement.removeChild(currentWandWrapper);
-                    currentWandWrapper = null;
-                    currentWandButton = null;
-                }
-                return;
-            }
-
-            const config = detectSiteConfig();
-            if (!config) return;
-
-            // Ensure wand isn't already there
-            if (document.querySelector('.boost-my-prompt-wand-wrapper')) return;
-
-            const container = document.querySelector(config.buttonContainerSelector);
-            if (container) {
-                const insertPos = config.insertPosition || 'afterbegin';
-                const wandEl = createWandButton();
-                if (config.wrapperStyle) {
-                    Object.assign(wandEl.style, config.wrapperStyle);
-                }
-                container.insertAdjacentElement(insertPos, wandEl);
-            }
-        });
+        const wandEl = createWandButton();
+        if (buttonContainer) {
+            wandEl.style.position = 'relative';
+            wandEl.style.top = 'auto';
+            wandEl.style.left = 'auto';
+            wandEl.style.zIndex = '1';
+            wandEl.style.display = 'inline-flex';
+            buttonContainer.appendChild(wandEl);
+        } else {
+            wandEl.style.position = 'fixed';
+            wandEl.style.zIndex = '2147483646';
+            document.body.appendChild(wandEl);
+            positionWand(wandEl, inputArea);
+        }
     } catch (e) {
-        // Silently catch context invalidated errors
+        console.error("injectWand error:", e);
     }
 }
 
+function positionWand(wandEl, inputEl) {
+    if (!wandEl || !inputEl) return;
+    const rect = inputEl.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) {
+        return; // No lo ocultes, simplemente no actualices la posición (SPAs rendering glitches)
+    }
+    wandEl.style.display = 'inline-flex';
+    wandEl.style.top = `${rect.bottom - 46}px`;
+    wandEl.style.left = `${rect.right - 46}px`;
+}
+
+// Adjust on scroll and resize only if the wand is floating
+window.addEventListener('resize', () => {
+    if (currentSiteConfig && currentWandWrapper && currentWandWrapper.style.position === 'fixed') {
+        const inputArea = document.querySelector(currentSiteConfig.inputSelector);
+        if (inputArea) positionWand(currentWandWrapper, inputArea);
+    }
+});
+document.addEventListener('scroll', () => {
+    if (currentSiteConfig && currentWandWrapper && currentWandWrapper.style.position === 'fixed') {
+        const inputArea = document.querySelector(currentSiteConfig.inputSelector);
+        if (inputArea) positionWand(currentWandWrapper, inputArea);
+    }
+}, true);
+
 // Observe DOM for the text area appearing (e.g., SPAs like ChatGPT)
+let injectTimeout = null;
 const observer = new MutationObserver((mutations) => {
-    injectWand();
+    if (injectTimeout) clearTimeout(injectTimeout);
+    injectTimeout = setTimeout(() => {
+        injectWand();
+    }, 250); // Debounce de 250ms para asegurar que React termine de procesar el DOM nuevo
 });
 
 observer.observe(document.body, { childList: true, subtree: true });
 
 // Listen for settings changes to re-evaluate injection
 chrome.storage.onChanged.addListener((changes, namespace) => {
-    if (namespace === 'local' && changes.enabled) {
+    if (namespace === 'local') {
+        if (changes.enabled !== undefined) {
+            isExtensionEnabled = changes.enabled.newValue;
+        }
+        if (changes.savedSites !== undefined) {
+            const configData = changes.savedSites.newValue[window.location.hostname];
+            if (configData) {
+                if (typeof configData === 'string') {
+                    currentSiteConfig = { host: window.location.hostname, inputSelector: configData, buttonContainerSelector: null };
+                } else {
+                    currentSiteConfig = { host: window.location.hostname, inputSelector: configData.inputSelector, buttonContainerSelector: configData.buttonContainerSelector };
+                }
+            } else {
+                currentSiteConfig = null;
+                if (currentWandWrapper && currentWandWrapper.parentElement) {
+                    currentWandWrapper.parentElement.removeChild(currentWandWrapper);
+                    currentWandWrapper = null;
+                    currentWandButton = null;
+                }
+            }
+        }
         injectWand();
     }
 });
