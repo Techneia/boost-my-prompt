@@ -1,14 +1,31 @@
-let currentSiteConfig = null;
+let activeConfigs = [];
 let isExtensionEnabled = true;
+
+const DEFAULT_SITE_CONFIGS = {
+    'chatgpt.com': [
+        {
+            inputSelector: '#prompt-textarea',
+            buttonContainerSelector: '[data-testid="send-button"]'
+        }
+    ]
+};
 
 chrome.storage.local.get({ savedSites: {}, enabled: true }, (items) => {
     isExtensionEnabled = items.enabled;
-    const configData = items.savedSites[window.location.hostname];
+    let configData = items.savedSites[window.location.hostname];
+    
+    // Fallback a configuración integrada de fábrica si el usuario no tiene reglas manuales aquí
+    if (!configData || (Array.isArray(configData) && configData.length === 0)) {
+        configData = DEFAULT_SITE_CONFIGS[window.location.hostname] || null;
+    }
+
     if (configData) {
-        if (typeof configData === 'string') {
-            currentSiteConfig = { host: window.location.hostname, inputSelector: configData, buttonContainerSelector: null };
+        if (Array.isArray(configData)) {
+            activeConfigs = configData;
+        } else if (typeof configData === 'string') {
+            activeConfigs = [{ inputSelector: configData, buttonContainerSelector: null }];
         } else {
-            currentSiteConfig = { host: window.location.hostname, inputSelector: configData.inputSelector, buttonContainerSelector: configData.buttonContainerSelector };
+            activeConfigs = [configData];
         }
     }
 });
@@ -63,7 +80,8 @@ function startPickerMode() {
     document.addEventListener('mouseover', highlightElement, true);
     document.addEventListener('mouseout', removeHighlight, true);
     document.addEventListener('click', selectElement, true);
-    showToast('Wand Setup (Step 1/2): Click the Text Input area used for prompting.', 5000);
+    document.addEventListener('keydown', handlePickerKeydown, true);
+    showToast('Wand Setup (Step 1/2): Click the Text Input area used for prompting. (Press ESC to cancel)', 5000);
 }
 
 function stopPickerMode() {
@@ -71,9 +89,18 @@ function stopPickerMode() {
     document.removeEventListener('mouseover', highlightElement, true);
     document.removeEventListener('mouseout', removeHighlight, true);
     document.removeEventListener('click', selectElement, true);
+    document.removeEventListener('keydown', handlePickerKeydown, true);
     if (currentHighlighted) {
         currentHighlighted.classList.remove('boost-my-prompt-picker-highlight');
         currentHighlighted = null;
+    }
+}
+
+function handlePickerKeydown(e) {
+    if (!pickerActive) return;
+    if (e.key === 'Escape') {
+        stopPickerMode();
+        showToast('Wand Setup cancelled.');
     }
 }
 
@@ -113,13 +140,34 @@ function selectElement(e) {
         const hostname = window.location.hostname;
         chrome.storage.local.get({ savedSites: {} }, (items) => {
             const savedSites = items.savedSites;
-            savedSites[hostname] = {
+            
+            let existing = savedSites[hostname];
+            if (!Array.isArray(existing)) {
+                if (typeof existing === 'string') {
+                    existing = [{ inputSelector: existing, buttonContainerSelector: null }];
+                } else if (existing && typeof existing === 'object') {
+                    existing = [existing];
+                } else {
+                    existing = [];
+                }
+            }
+            
+            const newConfig = {
                 inputSelector: tempInputSelector,
                 buttonContainerSelector: btnSelector
             };
+            
+            // Avoid extreme duplicates
+            const isDuplicate = existing.some(c => c.inputSelector === tempInputSelector && c.buttonContainerSelector === btnSelector);
+            if (!isDuplicate) {
+                existing.push(newConfig);
+            }
+
+            savedSites[hostname] = existing;
+            
             chrome.storage.local.set({ savedSites }, () => {
-                 showToast(`Wand configured perfectly for ${hostname}! ✨`);
-                 currentSiteConfig = { host: hostname, inputSelector: tempInputSelector, buttonContainerSelector: btnSelector };
+                 showToast(`Wand configured perfectly for ${hostname}! ✨ (${existing.length} rules active)`);
+                 activeConfigs = existing;
                  injectWand(); // Try to inject immediately
             });
         });
@@ -372,38 +420,45 @@ function setTextToInput(baseElement, text) {
     const element = findActualInput(baseElement);
     if (!element) return;
     if (element.tagName === 'TEXTAREA' || element.tagName === 'INPUT') {
+        element.value = '';
         element.value = text;
         element.dispatchEvent(new Event('input', { bubbles: true }));
         element.dispatchEvent(new Event('change', { bubbles: true }));
     } else if (element.isContentEditable || element.hasAttribute('contenteditable')) {
         element.focus();
 
-        // SELECCIONAMOS TODO EL TEXTO primero para forzar REEMPLAZO en lugar de añadir
-        document.execCommand('selectAll', false, null);
+        // 1. Seleccionamos el contenido internamente de forma explícita
+        const selection = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(element);
+        selection.removeAllRanges();
+        selection.addRange(range);
 
-        // Intentamos el evento paste para editores complejos
-        const dt = new DataTransfer();
-        dt.setData('text/plain', text);
-        const pasteEvent = new ClipboardEvent('paste', {
-            clipboardData: dt,
-            bubbles: true,
-            cancelable: true
-        });
+        // 2. Ejecutamos un "Delete" nativo. 
+        // Esto obliga a ProseMirror (ChatGPT) y React a borrar su estado interno de texto.
+        document.execCommand('delete', false, null);
 
-        element.dispatchEvent(pasteEvent);
-
-        if (!pasteEvent.defaultPrevented) {
-            document.execCommand('insertText', false, text);
-        }
+        // 3. Insertamos el nuevo texto limpio
+        document.execCommand('insertText', false, text);
+        
+        // Despachamos evento genérico por si algún framework secundario lo requiere
+        element.dispatchEvent(new Event('input', { bubbles: true }));
     }
 }
 
 // ========== Main Handler ==========
 
 async function handleWandClick() {
-    if (!currentSiteConfig) return;
+    if (activeConfigs.length === 0) return;
 
-    const rawInputArea = document.querySelector(currentSiteConfig.inputSelector);
+    let rawInputArea = null;
+    for (const config of activeConfigs) {
+        try {
+            rawInputArea = getVisibleElement(config.inputSelector);
+            if (rawInputArea) break;
+        } catch(e) {}
+    }
+
     if (!rawInputArea) {
         showToast("Error: No se encontró la caja de texto. Trata de reconfigurar la varita.", 4000);
         return;
@@ -498,6 +553,22 @@ async function handleWandClick() {
 
 // ========== Injection ==========
 
+function getVisibleElement(selector) {
+    try {
+        const elements = document.querySelectorAll(selector);
+        for (const el of elements) {
+            const rect = el.getBoundingClientRect();
+            // Verifica que tenga tamaño real en pantalla
+            if (rect.width > 0 && rect.height > 0) {
+                return el;
+            }
+        }
+    } catch (e) {
+        throw e; // re-lanzar para que lo agarre el catch superior y limpie el storage si el selector es inválido
+    }
+    return null;
+}
+
 function injectWand(retryCount = 0) {
     try {
         if (!isExtensionEnabled) {
@@ -509,36 +580,44 @@ function injectWand(retryCount = 0) {
             return;
         }
 
-        if (!currentSiteConfig) return;
+        if (activeConfigs.length === 0) return;
 
         let inputArea = null;
-        try {
-            inputArea = document.querySelector(currentSiteConfig.inputSelector);
-        } catch (queryErr) {
-            chrome.storage.local.get({ savedSites: {} }, (items) => {
-                const savedSites = items.savedSites;
-                if (savedSites[currentSiteConfig.host]) {
-                    delete savedSites[currentSiteConfig.host];
-                    chrome.storage.local.set({ savedSites });
+        let activeConfig = null;
+        
+        for (let i = 0; i < activeConfigs.length; i++) {
+            const config = activeConfigs[i];
+            try {
+                // Buscamos SOLO el área que esté visible en la pantalla
+                inputArea = getVisibleElement(config.inputSelector);
+                if (inputArea) {
+                    activeConfig = config;
+                    break;
                 }
-            });
-            return;
+            } catch (queryErr) {
+                // Eliminamos config corruptos silenciosamente
+                activeConfigs.splice(i, 1);
+                i--;
+            }
+        }
+        
+        // Sync corrupt trimmers back to storage
+        if (activeConfigs.length === 0) {
+             // Limpia storage si todo es inválido
+             chrome.storage.local.get({ savedSites: {} }, (items) => {
+                const savedSites = items.savedSites;
+                delete savedSites[window.location.hostname];
+                chrome.storage.local.set({ savedSites });
+             });
+             return;
         }
         
         if (!inputArea) return;
 
-        // Ensure wand isn't already there
-        if (document.querySelector('.boost-my-prompt-wand-wrapper')) {
-            if (!currentSiteConfig.buttonContainerSelector) {
-                positionWand(currentWandWrapper, inputArea);
-            }
-            return;
-        }
-
         let buttonContainer = null;
-        if (currentSiteConfig.buttonContainerSelector) {
+        if (activeConfig.buttonContainerSelector) {
             try {
-                buttonContainer = document.querySelector(currentSiteConfig.buttonContainerSelector);
+                buttonContainer = getVisibleElement(activeConfig.buttonContainerSelector);
             } catch (err) {}
             
             // Si hay un contenedor esperado pero no se encuentra aún en el DOM (SPA rendering delay)
@@ -548,18 +627,26 @@ function injectWand(retryCount = 0) {
             }
         }
 
+        const currentWrapperInDOM = document.querySelector('.boost-my-prompt-wand-wrapper');
+
         const wandEl = createWandButton();
         if (buttonContainer) {
-            wandEl.style.position = 'relative';
-            wandEl.style.top = 'auto';
-            wandEl.style.left = 'auto';
-            wandEl.style.zIndex = '1';
-            wandEl.style.display = 'inline-flex';
-            buttonContainer.appendChild(wandEl);
+            // Si ya está inyectado pero en el contenedor INCORRECTO (por ejemplo, el de la pantalla Home oculta), lo movemos
+            if (!currentWrapperInDOM || currentWrapperInDOM.parentElement !== buttonContainer) {
+                wandEl.style.position = 'relative';
+                wandEl.style.top = 'auto';
+                wandEl.style.left = 'auto';
+                wandEl.style.zIndex = '1';
+                wandEl.style.display = 'inline-flex';
+                buttonContainer.appendChild(wandEl);
+            }
         } else {
-            wandEl.style.position = 'fixed';
-            wandEl.style.zIndex = '2147483646';
-            document.body.appendChild(wandEl);
+            // Modo Fixed (cuando no hay botón configurado)
+            if (!currentWrapperInDOM) {
+                wandEl.style.position = 'fixed';
+                wandEl.style.zIndex = '2147483646';
+                document.body.appendChild(wandEl);
+            }
             positionWand(wandEl, inputArea);
         }
     } catch (e) {
@@ -580,14 +667,14 @@ function positionWand(wandEl, inputEl) {
 
 // Adjust on scroll and resize only if the wand is floating
 window.addEventListener('resize', () => {
-    if (currentSiteConfig && currentWandWrapper && currentWandWrapper.style.position === 'fixed') {
-        const inputArea = document.querySelector(currentSiteConfig.inputSelector);
+    if (activeConfigs.length > 0 && currentWandWrapper && currentWandWrapper.style.position === 'fixed') {
+        const inputArea = getVisibleElement(activeConfigs[0].inputSelector); // simplification
         if (inputArea) positionWand(currentWandWrapper, inputArea);
     }
 });
 document.addEventListener('scroll', () => {
-    if (currentSiteConfig && currentWandWrapper && currentWandWrapper.style.position === 'fixed') {
-        const inputArea = document.querySelector(currentSiteConfig.inputSelector);
+    if (activeConfigs.length > 0 && currentWandWrapper && currentWandWrapper.style.position === 'fixed') {
+        const inputArea = getVisibleElement(activeConfigs[0].inputSelector);
         if (inputArea) positionWand(currentWandWrapper, inputArea);
     }
 }, true);
@@ -610,15 +697,20 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
             isExtensionEnabled = changes.enabled.newValue;
         }
         if (changes.savedSites !== undefined) {
-            const configData = changes.savedSites.newValue[window.location.hostname];
+            let configData = changes.savedSites.newValue[window.location.hostname];
+            if (!configData || (Array.isArray(configData) && configData.length === 0)) {
+                configData = DEFAULT_SITE_CONFIGS[window.location.hostname] || null;
+            }
             if (configData) {
-                if (typeof configData === 'string') {
-                    currentSiteConfig = { host: window.location.hostname, inputSelector: configData, buttonContainerSelector: null };
+                if (Array.isArray(configData)) {
+                    activeConfigs = configData;
+                } else if (typeof configData === 'string') {
+                    activeConfigs = [{ inputSelector: configData, buttonContainerSelector: null }];
                 } else {
-                    currentSiteConfig = { host: window.location.hostname, inputSelector: configData.inputSelector, buttonContainerSelector: configData.buttonContainerSelector };
+                    activeConfigs = [configData];
                 }
             } else {
-                currentSiteConfig = null;
+                activeConfigs = [];
                 if (currentWandWrapper && currentWandWrapper.parentElement) {
                     currentWandWrapper.parentElement.removeChild(currentWandWrapper);
                     currentWandWrapper = null;
