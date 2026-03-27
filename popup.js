@@ -301,8 +301,16 @@ document.addEventListener('DOMContentLoaded', () => {
     setupWandBtn.addEventListener('click', () => {
         chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
             if (tabs[0]) {
-                chrome.tabs.sendMessage(tabs[0].id, {action: 'START_PICKER_MODE'});
-                window.close();
+                chrome.tabs.sendMessage(tabs[0].id, {action: 'START_PICKER_MODE'}, () => {
+                    // Prevent closing if there was an error injecting (like being on chrome://extensions)
+                    if (chrome.runtime.lastError) {
+                        statusDiv.textContent = 'Cannot wand this page (Must be a normal website).';
+                        statusDiv.style.color = '#ef4444';
+                        setTimeout(() => { statusDiv.textContent = ''; statusDiv.style.color = ''; }, 3000);
+                        return;
+                    }
+                    window.close();
+                });
             }
         });
     });

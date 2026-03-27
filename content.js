@@ -70,6 +70,8 @@ function getCssSelector(el) {
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.action === 'START_PICKER_MODE') {
         startPickerMode();
+        sendResponse({ started: true });
+        return true;
     }
 });
 
@@ -697,7 +699,7 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
             isExtensionEnabled = changes.enabled.newValue;
         }
         if (changes.savedSites !== undefined) {
-            let configData = changes.savedSites.newValue[window.location.hostname];
+            let configData = changes.savedSites.newValue ? changes.savedSites.newValue[window.location.hostname] : null;
             if (!configData || (Array.isArray(configData) && configData.length === 0)) {
                 configData = DEFAULT_SITE_CONFIGS[window.location.hostname] || null;
             }
