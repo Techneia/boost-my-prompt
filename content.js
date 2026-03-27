@@ -183,7 +183,7 @@ function showToast(msg, ms = 4000) {
     let t = document.createElement('div');
     t.className = 'boost-my-prompt-toast';
     t.textContent = msg;
-    t.style.position = 'fixed'; t.style.bottom = '20px'; t.style.left = '50%';
+    t.style.position = 'fixed'; t.style.top = '20px'; t.style.left = '50%';
     t.style.transform = 'translateX(-50%)';
     t.style.background = '#7c3aed'; t.style.color = '#fff';
     t.style.padding = '12px 24px'; t.style.borderRadius = '8px';
