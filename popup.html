@@ -12,72 +12,78 @@
     <div class="container">
         <h1>✨ Boost my prompT</h1>
 
-        <div class="form-group toggle-group">
-            <label for="extension-toggle">Enable Magic Wand</label>
-            <label class="switch">
-                <input type="checkbox" id="extension-toggle" checked>
-                <span class="slider round"></span>
-            </label>
-        </div>
-
-        <button id="setup-wand-btn" style="margin-bottom: 15px; background-color: #7c3aed; color: white; width: 100%; justify-content: center;">🪄 Setup wand on current tab</button>
-
-        <div class="form-group" id="saved-sites-group" style="display: none;">
-            <label>Configured Sites</label>
-            <ul id="saved-sites-list" style="list-style: none; padding: 0; margin: 0; font-size: 13px; max-height: 100px; overflow-y: auto;"></ul>
-        </div>
-
-        <div class="form-group">
-            <label for="provider">AI Provider</label>
-            <select id="provider">
-                <option value="openai">OpenAI (ChatGPT)</option>
-                <option value="gemini">Google Gemini</option>
-                <option value="anthropic">Anthropic (Claude)</option>
-                <option value="inception">Inception Labs</option>
-                <option value="openrouter">OpenRouter</option>
-                <option value="ollama-local">Ollama Local</option>
-                <option value="ollama-remote">Ollama Remote</option>
-            </select>
-        </div>
-
-        <div class="form-group" id="api-key-group">
-            <label for="api-key">API Key (BYOK) <span style="font-weight: normal; font-size: 0.75rem;">(Optional for
-                    Ollama)</span></label>
-            <input type="password" id="api-key" placeholder="Enter your API key here...">
-        </div>
-
-        <div class="form-group" id="ollama-url-group" style="display: none;">
-            <label for="ollama-url">Ollama URL</label>
-            <input type="text" id="ollama-url" placeholder="http://localhost:11434">
-        </div>
-
-        <div class="form-group" id="ollama-model-group">
-            <label for="ollama-model">Model Selection</label>
-            <div style="display: flex; gap: 8px;">
-                <select id="ollama-model" style="flex: 1;">
-                    <option value="">Select a model...</option>
-                </select>
-                <button type="button" id="fetch-ollama-models-btn" title="Refresh Models"
-                    style="padding: 8px;">↻</button>
+        <div id="main-screen">
+            <div class="form-group toggle-group">
+                <label for="extension-toggle">Enable Magic Wand</label>
+                <label class="switch">
+                    <input type="checkbox" id="extension-toggle" checked>
+                    <span class="slider round"></span>
+                </label>
             </div>
-            <input type="text" id="model-search" class="model-search-input" placeholder="Search models...">
-            <span id="ollama-fetch-status"
-                style="font-size: 12px; color: #666; margin-top: 4px; display: block;"></span>
+            
+            <button id="open-settings-btn" style="margin-top: 15px; background-color: #333; color: white; width: 100%; justify-content: center; display: flex; align-items: center; gap: 8px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                Advanced Settings
+            </button>
+            <a href="about.html" class="about-footer-link" style="margin-top: 20px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M12 16v-4"/>
+                    <path d="M12 8h.01"/>
+                </svg>
+                About Us
+            </a>
         </div>
 
+        <div id="settings-screen" style="display: none;">
+            <button id="back-to-main-btn" style="margin-bottom: 20px; background: transparent; color: #7c3aed; border: 1px solid #7c3aed; width: 100%; justify-content: center; display: flex; align-items: center; gap: 8px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                Back to Dashboard
+            </button>
 
+            <button id="setup-wand-btn" style="margin-bottom: 15px; background-color: #7c3aed; color: white; width: 100%; justify-content: center;">🪄 Setup wand on current tab</button>
 
-        <button id="save-btn">Save Settings</button>
-        <div id="status"></div>
-        
-        <a href="about.html" class="about-footer-link">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10"/>
-                <path d="M12 16v-4"/>
-                <path d="M12 8h.01"/>
-            </svg>
-            About Us
-        </a>
+            <div class="form-group" id="saved-sites-group" style="display: none;">
+                <label>Configured Sites</label>
+                <ul id="saved-sites-list" style="list-style: none; padding: 0; margin: 0; font-size: 13px; max-height: 100px; overflow-y: auto;"></ul>
+            </div>
+
+            <div class="form-group">
+                <label for="provider">AI Provider</label>
+                <select id="provider">
+                    <option value="openai">OpenAI (ChatGPT)</option>
+                    <option value="gemini">Google Gemini</option>
+                    <option value="anthropic">Anthropic (Claude)</option>
+                    <option value="inception">Inception Labs</option>
+                    <option value="openrouter">OpenRouter</option>
+                    <option value="ollama-local">Ollama Local</option>
+                    <option value="ollama-remote">Ollama Remote</option>
+                </select>
+            </div>
+
+            <div class="form-group" id="api-key-group">
+                <label for="api-key">API Key (BYOK) <span style="font-weight: normal; font-size: 0.75rem;">(Optional for Ollama)</span></label>
+                <div style="display: flex; gap: 8px;">
+                    <input type="password" id="api-key" placeholder="Enter your API key here..." style="flex: 1;">
+                    <button type="button" id="fetch-ollama-models-btn" title="Refresh Models" style="padding: 8px;">↻ Get Models</button>
+                </div>
+            </div>
+
+            <div class="form-group" id="ollama-url-group" style="display: none;">
+                <label for="ollama-url">Ollama URL</label>
+                <input type="text" id="ollama-url" placeholder="http://localhost:11434">
+            </div>
+
+            <div class="form-group" id="ollama-model-group">
+                <label for="ollama-model">Model Selection</label>
+                <input type="text" id="ollama-model" list="model-list" placeholder="Search or select a model..." style="width: 100%;">
+                <datalist id="model-list"></datalist>
+                <span id="ollama-fetch-status" style="font-size: 12px; color: #666; margin-top: 4px; display: block;"></span>
+            </div>
+
+            <button id="save-btn">Save Settings</button>
+            <div id="status"></div>
+        </div>
     </div>
     <script src="popup.js"></script>
 </body>

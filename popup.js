@@ -9,12 +9,28 @@ document.addEventListener('DOMContentLoaded', () => {
     const ollamaUrlGroup = document.getElementById('ollama-url-group');
     const ollamaUrlInput = document.getElementById('ollama-url');
     const ollamaModelGroup = document.getElementById('ollama-model-group');
-    const ollamaModelSelect = document.getElementById('ollama-model');
+    const ollamaModelInput = document.getElementById('ollama-model');
+    const modelDataList = document.getElementById('model-list');
     const fetchModelsBtn = document.getElementById('fetch-ollama-models-btn');
     const ollamaFetchStatus = document.getElementById('ollama-fetch-status');
-    const modelSearchInput = document.getElementById('model-search');
     const saveBtn = document.getElementById('save-btn');
     const statusDiv = document.getElementById('status');
+
+    // Navigation handling
+    const mainScreen = document.getElementById('main-screen');
+    const settingsScreen = document.getElementById('settings-screen');
+    const openSettingsBtn = document.getElementById('open-settings-btn');
+    const backToMainBtn = document.getElementById('back-to-main-btn');
+
+    openSettingsBtn.addEventListener('click', () => {
+        mainScreen.style.display = 'none';
+        settingsScreen.style.display = 'block';
+    });
+
+    backToMainBtn.addEventListener('click', () => {
+        settingsScreen.style.display = 'none';
+        mainScreen.style.display = 'block';
+    });
 
     let currentApiKeys = {};
     let currentProviderUrls = {};
@@ -86,9 +102,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (savedModel) {
                 const opt = document.createElement('option');
                 opt.value = savedModel;
-                opt.textContent = savedModel;
-                ollamaModelSelect.appendChild(opt);
-                ollamaModelSelect.value = savedModel;
+                modelDataList.appendChild(opt);
+                ollamaModelInput.value = savedModel;
             }
 
             updateUIForProvider();
@@ -105,18 +120,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         apiKeyInput.value = currentApiKeys[provider] || '';
         ollamaUrlInput.value = currentProviderUrls[provider] || '';
-        modelSearchInput.value = '';
         allModels = [];
 
-        ollamaModelSelect.innerHTML = '<option value="">Select a model...</option>';
+        modelDataList.innerHTML = '';
         const savedModel = currentProviderModels[provider] || '';
         if (savedModel) {
             const opt = document.createElement('option');
             opt.value = savedModel;
-            opt.textContent = savedModel;
-            ollamaModelSelect.appendChild(opt);
-            ollamaModelSelect.value = savedModel;
+            modelDataList.appendChild(opt);
         }
+        ollamaModelInput.value = savedModel;
 
         updateUIForProvider();
     });
@@ -163,11 +176,11 @@ document.addEventListener('DOMContentLoaded', () => {
             // Anthropic doesn't have a standard /models endpoint. Mocking common ones.
             const anthropicModels = ['claude-3-5-sonnet-20240620', 'claude-3-opus-20240229', 'claude-3-haiku-20240307'];
             allModels = [...anthropicModels];
-            ollamaModelSelect.innerHTML = '<option value="">Select a model...</option>';
+            modelDataList.innerHTML = '';
             anthropicModels.forEach(m => {
                 const opt = document.createElement('option');
-                opt.value = opt.textContent = m;
-                ollamaModelSelect.appendChild(opt);
+                opt.value = m;
+                modelDataList.appendChild(opt);
             });
             return ollamaFetchStatus.textContent = 'Loaded common Anthropic models.';
         } else if (provider === 'ollama-local' || provider === 'ollama-remote') {
@@ -193,8 +206,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const data = await response.json();
 
-            const previousModel = ollamaModelSelect.value;
-            ollamaModelSelect.innerHTML = '<option value="">Select a model...</option>';
+            const previousModel = ollamaModelInput.value;
+            modelDataList.innerHTML = '';
 
             let modelsArray = [];
 
@@ -224,16 +237,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 modelsArray.forEach(modelId => {
                     const opt = document.createElement('option');
                     opt.value = modelId;
-                    opt.textContent = modelId;
-                    ollamaModelSelect.appendChild(opt);
+                    modelDataList.appendChild(opt);
                 });
                 ollamaFetchStatus.textContent = `Found ${modelsArray.length} models.`;
             } else {
                 ollamaFetchStatus.textContent = 'No models found.';
             }
 
-            if (previousModel && [...ollamaModelSelect.options].some(opt => opt.value === previousModel)) {
-                ollamaModelSelect.value = previousModel;
+            if (previousModel && modelsArray.includes(previousModel)) {
+                ollamaModelInput.value = previousModel;
             }
 
             saveSettings(); // auto-save the newly loaded or retained model
@@ -257,7 +269,7 @@ document.addEventListener('DOMContentLoaded', () => {
             urlClean = urlClean.slice(0, -1);
         }
         currentProviderUrls[provider] = urlClean;
-        currentProviderModels[provider] = ollamaModelSelect.value;
+        currentProviderModels[provider] = ollamaModelInput.value;
 
         chrome.storage.local.set(
             {
@@ -279,34 +291,10 @@ document.addEventListener('DOMContentLoaded', () => {
     saveBtn.addEventListener('click', saveSettings);
 
     // Auto-save on any change
-    [toggleInput, providerSelect, apiKeyInput, ollamaUrlInput, ollamaModelSelect].forEach(input => {
+    [toggleInput, providerSelect, apiKeyInput, ollamaUrlInput, ollamaModelInput].forEach(input => {
         input.addEventListener('change', saveSettings);
         if (input.type === 'text' || input.tagName === 'TEXTAREA') {
             input.addEventListener('input', saveSettings);
-        }
-    });
-
-    // Model search filter
-    modelSearchInput.addEventListener('input', () => {
-        const searchTerm = modelSearchInput.value.toLowerCase().trim();
-        
-        ollamaModelSelect.innerHTML = '<option value="">Select a model...</option>';
-        
-        const filteredModels = allModels.filter(model => 
-            model.toLowerCase().includes(searchTerm)
-        );
-        
-        filteredModels.forEach(modelId => {
-            const opt = document.createElement('option');
-            opt.value = modelId;
-            opt.textContent = modelId;
-            ollamaModelSelect.appendChild(opt);
-        });
-        
-        if (allModels.length > 0 && filteredModels.length === 0) {
-            ollamaFetchStatus.textContent = 'No models match your search.';
-        } else if (filteredModels.length > 0) {
-            ollamaFetchStatus.textContent = `${filteredModels.length} model(s) found.`;
         }
     });
 
