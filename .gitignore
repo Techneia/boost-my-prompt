@@ -3,3 +3,6 @@ node_modules/
 _metadata/
 .gemini/
 *.zip
+
+# Local AI session context — NOT tracked
+.dev/
