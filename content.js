@@ -193,7 +193,9 @@ function showToast(msg, ms = 4000) {
     setTimeout(() => t.remove(), ms);
 }
 
+let currentMasterContainer = null;
 let currentWandWrapper = null;
+let currentCompressWrapper = null;
 let currentWandButton = null;
 
 // --- Progress state ---
@@ -207,6 +209,7 @@ let progressRingSvg = null;
 const RING_CIRCUMFERENCE = 2 * Math.PI * 15; // radius = 15
 
 const WAND_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wand-2"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72Z"/><path d="m14 7 3 3"/><path d="M5 6v4"/><path d="M19 14v4"/><path d="M10 2v2"/><path d="M7 8H3"/><path d="M21 16h-4"/><path d="M11 3H9"/></svg>`;
+const COMPRESS_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-scissors"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>`;
 
 // ========== Progress Ring Helpers ==========
 
@@ -304,11 +307,14 @@ function cancelProgress() {
 // ========== Button Creation ==========
 
 function createWandButton() {
-    if (currentWandWrapper) return currentWandWrapper;
+    if (currentMasterContainer) return currentMasterContainer;
 
-    // Wrapper
-    const wrapper = document.createElement('div');
-    wrapper.className = 'boost-my-prompt-wand-wrapper';
+    const masterContainer = document.createElement('div');
+    masterContainer.className = 'boost-my-prompt-master-container';
+
+    // Wrapper 1: Wand
+    const wandWrapper = document.createElement('div');
+    wandWrapper.className = 'boost-my-prompt-wand-wrapper';
 
     // SVG Progress Ring
     const svgNS = 'http://www.w3.org/2000/svg';
@@ -364,25 +370,46 @@ function createWandButton() {
     label.textContent = '0%';
     pctLabel = label;
 
-    // The button itself
-    const btn = document.createElement('button');
-    btn.className = 'boost-my-prompt-wand-btn';
-    btn.innerHTML = WAND_ICON;
-    btn.title = 'Boost your prompt ✨';
-    btn.addEventListener('click', async (e) => {
+    // The Wand button itself
+    const wandBtn = document.createElement('button');
+    wandBtn.className = 'boost-my-prompt-wand-btn';
+    wandBtn.innerHTML = WAND_ICON;
+    wandBtn.title = 'Boost your prompt ✨';
+    wandBtn.addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
         await handleWandClick();
     });
 
-    currentWandButton = btn;
+    currentWandButton = wandBtn;
 
-    wrapper.appendChild(svg);
-    wrapper.appendChild(btn);
-    wrapper.appendChild(label);
+    wandWrapper.appendChild(svg);
+    wandWrapper.appendChild(wandBtn);
+    wandWrapper.appendChild(label);
+    currentWandWrapper = wandWrapper;
 
-    currentWandWrapper = wrapper;
-    return wrapper;
+    // Wrapper 2: Compress
+    const compressWrapper = document.createElement('div');
+    compressWrapper.className = 'boost-my-prompt-wand-wrapper compress-wrapper';
+
+    const compressBtn = document.createElement('button');
+    compressBtn.className = 'boost-my-prompt-wand-btn';
+    compressBtn.innerHTML = COMPRESS_ICON;
+    compressBtn.title = 'Compress Prompt (T9) ✂️';
+    compressBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        await handleCompressClick();
+    });
+
+    compressWrapper.appendChild(compressBtn);
+    currentCompressWrapper = compressWrapper;
+
+    masterContainer.appendChild(wandWrapper);
+    masterContainer.appendChild(compressWrapper);
+
+    currentMasterContainer = masterContainer;
+    return masterContainer;
 }
 
 // ========== Input Helpers ==========
@@ -553,6 +580,83 @@ async function handleWandClick() {
     }
 }
 
+async function handleCompressClick() {
+    if (activeConfigs.length === 0) return;
+
+    let rawInputArea = null;
+    for (const config of activeConfigs) {
+        try {
+            rawInputArea = getVisibleElement(config.inputSelector);
+            if (rawInputArea) break;
+        } catch(e) {}
+    }
+
+    if (!rawInputArea) {
+        showToast("Error: No se encontró la caja de texto. Trata de reconfigurar la varita.", 4000);
+        return;
+    }
+    
+    let inputArea = findActualInput(rawInputArea);
+
+    let textToImprove = '';
+    if (inputArea) {
+        textToImprove = getTextFromInput(inputArea);
+    }
+
+    if (!textToImprove || !textToImprove.trim()) {
+        const fallbacks = document.querySelectorAll('textarea, [contenteditable], input[type="text"]');
+        for (let el of fallbacks) {
+            let txt = '';
+            if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
+                txt = el.value;
+            } else {
+                txt = el.innerText || el.textContent;
+            }
+            if (txt && txt.trim()) {
+                inputArea = el;
+                textToImprove = txt;
+                break;
+            }
+        }
+    }
+
+    if (!textToImprove || !textToImprove.trim()) {
+        showToast("Escribe algo en la caja de texto primero ✍️", 4000);
+        return;
+    }
+
+    if (currentCompressWrapper) currentCompressWrapper.classList.add('loading');
+
+    try {
+        if (!chrome.runtime || !chrome.runtime.sendMessage) {
+            if (currentCompressWrapper) currentCompressWrapper.classList.remove('loading');
+            alert('Boost my prompT was updated. Please refresh THIS page to use the new version.');
+            return;
+        }
+
+        chrome.runtime.sendMessage({ action: 'compressPrompt', text: textToImprove }, (response) => {
+            if (currentCompressWrapper) currentCompressWrapper.classList.remove('loading');
+            
+            if (chrome.runtime.lastError) {
+                console.error("Extension runtime error:", chrome.runtime.lastError);
+                return;
+            }
+
+            if (response && response.error) {
+                alert(`Boost my prompT error: ${response.error}`);
+                return;
+            }
+
+            if (response && response.success && response.improvedText) {
+                setTextToInput(inputArea, response.improvedText);
+            }
+        });
+    } catch (err) {
+        if (currentCompressWrapper) currentCompressWrapper.classList.remove('loading');
+        console.error("Compress click error:", err);
+    }
+}
+
 // ========== Injection ==========
 
 function getVisibleElement(selector) {
@@ -574,9 +678,11 @@ function getVisibleElement(selector) {
 function injectWand(retryCount = 0) {
     try {
         if (!isExtensionEnabled) {
-            if (currentWandWrapper && currentWandWrapper.parentElement) {
-                currentWandWrapper.parentElement.removeChild(currentWandWrapper);
+            if (currentMasterContainer && currentMasterContainer.parentElement) {
+                currentMasterContainer.parentElement.removeChild(currentMasterContainer);
+                currentMasterContainer = null;
                 currentWandWrapper = null;
+                currentCompressWrapper = null;
                 currentWandButton = null;
             }
             return;
@@ -629,7 +735,7 @@ function injectWand(retryCount = 0) {
             }
         }
 
-        const currentWrapperInDOM = document.querySelector('.boost-my-prompt-wand-wrapper');
+        const currentWrapperInDOM = document.querySelector('.boost-my-prompt-master-container');
 
         const wandEl = createWandButton();
         if (buttonContainer) {
@@ -669,15 +775,15 @@ function positionWand(wandEl, inputEl) {
 
 // Adjust on scroll and resize only if the wand is floating
 window.addEventListener('resize', () => {
-    if (activeConfigs.length > 0 && currentWandWrapper && currentWandWrapper.style.position === 'fixed') {
+    if (activeConfigs.length > 0 && currentMasterContainer && currentMasterContainer.style.position === 'fixed') {
         const inputArea = getVisibleElement(activeConfigs[0].inputSelector); // simplification
-        if (inputArea) positionWand(currentWandWrapper, inputArea);
+        if (inputArea) positionWand(currentMasterContainer, inputArea);
     }
 });
 document.addEventListener('scroll', () => {
-    if (activeConfigs.length > 0 && currentWandWrapper && currentWandWrapper.style.position === 'fixed') {
+    if (activeConfigs.length > 0 && currentMasterContainer && currentMasterContainer.style.position === 'fixed') {
         const inputArea = getVisibleElement(activeConfigs[0].inputSelector);
-        if (inputArea) positionWand(currentWandWrapper, inputArea);
+        if (inputArea) positionWand(currentMasterContainer, inputArea);
     }
 }, true);
 
@@ -713,9 +819,11 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
                 }
             } else {
                 activeConfigs = [];
-                if (currentWandWrapper && currentWandWrapper.parentElement) {
-                    currentWandWrapper.parentElement.removeChild(currentWandWrapper);
+                if (currentMasterContainer && currentMasterContainer.parentElement) {
+                    currentMasterContainer.parentElement.removeChild(currentMasterContainer);
+                    currentMasterContainer = null;
                     currentWandWrapper = null;
+                    currentCompressWrapper = null;
                     currentWandButton = null;
                 }
             }

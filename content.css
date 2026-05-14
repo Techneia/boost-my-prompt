@@ -1,4 +1,14 @@
-/* ===== Wand Button Container ===== */
+/* ===== Master Container ===== */
+.boost-my-prompt-master-container {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin: 0 4px;
+}
+
+/* ===== Wand Button Wrapper ===== */
 .boost-my-prompt-wand-wrapper {
     position: relative;
     display: inline-flex;
@@ -6,7 +16,6 @@
     justify-content: center;
     width: 36px;
     height: 36px;
-    margin: 0 4px;
 }
 
 /* ===== Progress Ring (SVG overlay) ===== */

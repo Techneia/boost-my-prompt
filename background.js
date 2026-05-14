@@ -1,4 +1,14 @@
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === 'compressPrompt') {
+        try {
+            const compressedText = compressTokens(request.text);
+            sendResponse({ success: true, improvedText: compressedText });
+        } catch (e) {
+            sendResponse({ error: 'Local compression failed: ' + e.message });
+        }
+        return true;
+    }
+
     if (request.action === 'boostPrompt') {
         const textToImprove = request.text;
 
@@ -273,4 +283,85 @@ async function callAnthropic(text, settings) {
 
     const data = await response.json();
     return data.content[0].text.trim();
+}
+
+// --- T9Caveman Compression Logic ---
+
+const STOPWORDS = new Set([
+  "el", "la", "los", "las", "un", "una", "unos", "unas", "lo", "al", "del",
+  "a", "ante", "bajo", "cabe", "con", "contra", "de", "desde", "durante", "en", "entre", "hacia", "hasta", "mediante", "para", "por", "segun", "sin", "so", "sobre", "tras", "versus", "via",
+  "y", "e", "ni", "o", "u", "pero", "aunque", "mas", "sino", "porque", "pues", "si", "como", "entonces", "ademas", "tambien", "tampoco", "incluso", "asi",
+  "que", "quien", "cual", "cuales", "quienes", "me", "te", "se", "nos", "os", "le", "les", "mi", "tu", "su", "mis", "tus", "sus", "esto", "esta", "estos", "estas", "eso", "esa", "esos", "esas", "aquel", "aquella",
+  "es", "son", "ser", "sea", "sean", "esta", "estan", "estar", "estoy", "estas", "ha", "han", "he", "has", "haber", "hacer", "hace", "hacen", "tener", "tiene", "tienen", "tengo", "puede", "pueden", "pueda", "puedan", "puedo", "poder", "debe", "deben", "debo", "quiero", "quiere", "quieren", "querer", "van", "va", "vamos", "voy", "ir", "puedes", "tienes",
+  "muy", "mucho", "muchos", "mucha", "muchas", "poco", "pocos", "bastante", "demasiado", "solo", "solamente", "realmente", "basicamente", "luego", "despues", "antes", "ahora", "ya", "aqui", "alli", "alla", "donde", "cuando", "mientras", "siempre", "nunca", "jamas", "casi", "tal", "vez",
+  "completo", "completa", "posible", "posibles", "propuesta", "definicion", "ejemplo", "favor"
+]);
+
+const PHRASES = {
+  "por favor": "",
+  "aplicacion movil": "app",
+  "redes sociales": "redes",
+  "base de datos": "bd",
+  "inteligencia artificial": "ia",
+  "paso a paso": "paso/paso",
+  "modelo de negocio": "modelo negocio"
+};
+
+const WORDS_DICT = {
+  "aplicacion": "app",
+  "entrega": "delivery",
+  "mensaje": "msj",
+  "desarrollo": "dev",
+  "informacion": "info",
+  "configuracion": "config",
+  "tecnologia": "tech",
+  "marketing": "mkt",
+  "profesional": "pro"
+};
+
+function removeAccents(str) {
+  return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function compressTokens(text) {
+  if (!text || !text.trim()) return "";
+  
+  let result = removeAccents(text);
+  
+  for (const [phrase, replacement] of Object.entries(PHRASES)) {
+    const regex = new RegExp(`\\b${phrase}\\b`, 'gi');
+    result = result.replace(regex, replacement);
+  }
+  
+  const parts = result.split(/([a-zA-Z]+)/);
+  let transformedParts = [];
+  
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    if (i % 2 === 0) {
+      transformedParts.push(part);
+      continue;
+    }
+    
+    const lowerWord = part.toLowerCase();
+    
+    if (STOPWORDS.has(lowerWord)) {
+      transformedParts.push("");
+      continue;
+    }
+    
+    if (WORDS_DICT.hasOwnProperty(lowerWord)) {
+      transformedParts.push(WORDS_DICT[lowerWord]);
+      continue;
+    }
+    
+    transformedParts.push(part);
+  }
+  
+  let finalResult = transformedParts.join("");
+  
+  finalResult = finalResult.replace(/ {2,}/g, ' ');
+  finalResult = finalResult.replace(/\n {1,}/g, '\n');
+  
+  return finalResult.trim();
 }
